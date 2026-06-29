@@ -16,6 +16,8 @@ const toDebt = (r) => ({
   updatedAt: r.updated_at,
   totalMonths: r.total_months || null,
   paidMonths: r.paid_months || 0,
+  loanType: r.loan_type || 'kredi',
+  monthlyRate: r.monthly_rate || null,
 });
 
 const toPayment = (r) => ({
@@ -185,6 +187,8 @@ export function useSupabase(userId) {
           status: 'active',
           total_months: data.totalMonths || null,
           paid_months: 0,
+          loan_type: data.loanType || 'kredi',
+          monthly_rate: data.monthlyRate || null,
         })
         .select()
         .single();
@@ -210,6 +214,8 @@ export function useSupabase(userId) {
       if (data.status != null) u.status = data.status;
       if (data.totalMonths != null) u.total_months = data.totalMonths;
       if (data.paidMonths != null) u.paid_months = data.paidMonths;
+      if (data.loanType != null) u.loan_type = data.loanType;
+      if (data.monthlyRate !== undefined) u.monthly_rate = data.monthlyRate;
       const { data: updated, error } = await supabase
         .from('debts')
         .update(u)
@@ -253,14 +259,26 @@ export function useSupabase(userId) {
           error: 'Ödeme tutarı kalan borçtan büyük olamaz.',
         };
 
-      const newRemaining = parseFloat(
-        (debt.remainingAmount - parsed).toFixed(2),
-      );
+      // KMH: kalan = (kalan - ödeme) + (kalan - ödeme) * monthlyRate
+      // Normal: kalan = kalan - ödeme
+      let newRemaining;
+      const isKMH = debt.loanType === 'kmh' && debt.monthlyRate;
+
+      if (isKMH) {
+        const anapara = parseFloat((debt.remainingAmount - parsed).toFixed(2));
+        if (anapara <= 0) {
+          newRemaining = 0;
+        } else {
+          const faiz = parseFloat((anapara * debt.monthlyRate).toFixed(2));
+          newRemaining = parseFloat((anapara + faiz).toFixed(2));
+        }
+      } else {
+        newRemaining = parseFloat((debt.remainingAmount - parsed).toFixed(2));
+      }
+      if (newRemaining < 0) newRemaining = 0;
       const newStatus = newRemaining === 0 ? 'paid' : 'active';
 
-      const monthUpdate = debt.totalMonths
-        ? { paid_months: (debt.paidMonths || 0) + 1 }
-        : {};
+      const monthUpdate = { paid_months: (debt.paidMonths || 0) + 1 };
       const { data: updatedDebt, error: e1 } = await supabase
         .from('debts')
         .update({

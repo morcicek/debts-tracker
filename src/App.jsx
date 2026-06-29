@@ -873,6 +873,21 @@ function DebtCard({ debt, sym, onPay, onDetail }) {
               ) : (
                 fmt(debt.plannedPaymentAmount, sym) + '/ay'
               )}
+              {debt.loanType === 'kmh' && debt.monthlyRate && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    padding: '1px 6px',
+                    borderRadius: 99,
+                    marginLeft: 4,
+                    fontWeight: 700,
+                  }}
+                >
+                  KMH %{(debt.monthlyRate * 100).toFixed(2)}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -2159,19 +2174,26 @@ function DetailPanel({
                   (debt.paidMonths || 0) + '/' + debt.totalMonths + ' ay',
                 ]
               : ['Aylık', fmt(debt.plannedPaymentAmount, sym)],
-          ].map(([l, v]) => (
-            <div
-              key={l}
-              style={{ background: '#f9fafb', borderRadius: 10, padding: 12 }}
-            >
-              <div style={{ fontSize: 11, color: C.subtle, marginBottom: 2 }}>
-                {l}
+            debt.loanType === 'kmh' && debt.monthlyRate
+              ? ['Aylık Faiz', '%' + (debt.monthlyRate * 100).toFixed(2)]
+              : null,
+          ]
+            .filter(Boolean)
+            .map(([l, v]) => (
+              <div
+                key={l}
+                style={{ background: '#f9fafb', borderRadius: 10, padding: 12 }}
+              >
+                <div style={{ fontSize: 11, color: C.subtle, marginBottom: 2 }}>
+                  {l}
+                </div>
+                <div
+                  style={{ fontWeight: 800, fontSize: 14, color: C.primary }}
+                >
+                  {v}
+                </div>
               </div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: C.primary }}>
-                {v}
-              </div>
-            </div>
-          ))}
+            ))}
         </div>
         <div
           style={{
@@ -2377,6 +2399,8 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
           dueDate: init.dueDate,
           note: init.note || '',
           totalMonths: init.totalMonths ? String(init.totalMonths) : '',
+          loanType: init.loanType || 'kredi',
+          monthlyRate: init.monthlyRate ? String(init.monthlyRate) : '',
         }
       : {
           category: 'credit_card',
@@ -2387,6 +2411,8 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
           dueDate: '',
           note: '',
           totalMonths: '',
+          loanType: 'kredi',
+          monthlyRate: '',
         },
   );
   const [errs, setErrs] = useState({}),
@@ -2435,6 +2461,11 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
           totalMonths:
             f.category === 'loan' && f.totalMonths
               ? parseInt(f.totalMonths)
+              : null,
+          loanType: f.category === 'loan' ? f.loanType : 'kredi',
+          monthlyRate:
+            f.category === 'loan' && f.loanType === 'kmh' && f.monthlyRate
+              ? parseFloat(f.monthlyRate) / 100
               : null,
         },
         init?.id,
@@ -2559,6 +2590,47 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
           placeholder="ör. Akbank Axess"
           error={errs.name}
         />
+
+        {/* Kredi türü — sadece loan kategorisinde */}
+        {f.category === 'loan' && (
+          <div>
+            <Label>Kredi Türü</Label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+              }}
+            >
+              {[
+                ['kredi', '🏦 Kredi'],
+                ['kmh', '⚡ KMH'],
+              ].map(([val, lbl]) => {
+                const a = f.loanType === val;
+                return (
+                  <button
+                    key={val}
+                    onClick={() => set('loanType', val)}
+                    style={{
+                      padding: '11px 8px',
+                      borderRadius: 10,
+                      background: a ? '#eff6ff' : '#f9fafb',
+                      border: `1.5px solid ${a ? C.primary : 'transparent'}`,
+                      cursor: 'pointer',
+                      color: a ? C.primary : C.muted,
+                      fontFamily: 'inherit',
+                      fontWeight: a ? 700 : 500,
+                      fontSize: 13,
+                    }}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <TInput
           label="Toplam Borç"
           value={f.totalAmount}
@@ -2568,6 +2640,70 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
           prefix={sym}
           error={errs.totalAmount}
         />
+
+        {/* KMH aylık faiz oranı */}
+        {f.category === 'loan' && f.loanType === 'kmh' && (
+          <div>
+            <Label>Aylık Faiz Oranı (%)</Label>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: '#f9fafb',
+                border: '1.5px solid transparent',
+                borderRadius: 9,
+                padding: '9px 12px',
+              }}
+              onFocusCapture={(e) =>
+                (e.currentTarget.style.borderColor = C.primary)
+              }
+              onBlurCapture={(e) =>
+                (e.currentTarget.style.borderColor = 'transparent')
+              }
+            >
+              <input
+                type="number"
+                value={f.monthlyRate}
+                onChange={(e) => set('monthlyRate', e.target.value)}
+                placeholder="ör. 4.25"
+                step="0.01"
+                min="0"
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: 13,
+                  color: C.text,
+                  fontFamily: 'inherit',
+                  minWidth: 0,
+                }}
+              />
+              <span style={{ fontWeight: 700, color: C.subtle, fontSize: 13 }}>
+                %
+              </span>
+            </div>
+            {f.monthlyRate && (
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: '7px 11px',
+                  borderRadius: 8,
+                  background: '#eff6ff',
+                  fontSize: 12,
+                  color: C.primary,
+                  fontWeight: 600,
+                }}
+              >
+                İşleme alınacak: %{f.monthlyRate} →{' '}
+                {(parseFloat(f.monthlyRate) / 100).toFixed(4)} · Örnek: 10.000₺
+                borçta aylık{' '}
+                {fmt((10000 * parseFloat(f.monthlyRate)) / 100, sym)} faiz
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Asgari Ödeme — sadece kredi kartı */}
         {f.category === 'credit_card' && (
@@ -2657,7 +2793,7 @@ function FormPanel({ init, sym, onClose, onSave, isMobile }) {
             prefix={sym}
             error={errs.plannedPaymentAmount}
           />
-          {f.category === 'loan' && (
+          {f.category === 'loan' && f.loanType !== 'kmh' && (
             <TInput
               label="Vade (Ay)"
               value={f.totalMonths}
