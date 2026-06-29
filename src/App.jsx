@@ -3261,6 +3261,71 @@ export default function App() {
     };
   }, [debts]);
 
+  // ── Bildirimler: uygulama açılınca yaklaşan/geciken borçları bildir
+  useEffect(() => {
+    if (!user || dbLoading || debts.length === 0) return;
+    const run = async () => {
+      // İzin iste
+      if (!('Notification' in window)) return;
+      let perm = Notification.permission;
+      if (perm === 'default') perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const active = debts.filter((d) => d.status === 'active' && d.dueDate);
+
+      // Geciken borçlar
+      const overdue = active.filter((d) => {
+        const dt = new Date(d.dueDate);
+        dt.setHours(0, 0, 0, 0);
+        return dt < today;
+      });
+      // Bugün son günü olan
+      const dueToday = active.filter((d) => {
+        const dt = new Date(d.dueDate);
+        dt.setHours(0, 0, 0, 0);
+        return dt.getTime() === today.getTime();
+      });
+      // 3 gün içinde
+      const soon = active.filter((d) => {
+        const dt = new Date(d.dueDate);
+        dt.setHours(0, 0, 0, 0);
+        const diff = Math.ceil((dt - today) / 864e5);
+        return diff > 0 && diff <= 3;
+      });
+
+      if (overdue.length > 0) {
+        new Notification('⚠️ Gecikmiş Ödeme', {
+          body:
+            overdue.length === 1
+              ? `${overdue[0].name} ödemesi gecikmiş!`
+              : `${overdue.length} borcunuzun ödemesi gecikmiş!`,
+          icon: '/vite.svg',
+          tag: 'overdue',
+        });
+      } else if (dueToday.length > 0) {
+        new Notification('📅 Bugün Son Gün!', {
+          body:
+            dueToday.length === 1
+              ? `${dueToday[0].name} için bugün son ödeme günü.`
+              : `${dueToday.length} borcunuzun bugün son ödeme günü.`,
+          icon: '/vite.svg',
+          tag: 'today',
+        });
+      } else if (soon.length > 0) {
+        new Notification('🔔 Yaklaşan Ödeme', {
+          body:
+            soon.length === 1
+              ? `${soon[0].name} ödemesi yaklaşıyor.`
+              : `${soon.length} borcunuzun ödemesi yaklaşıyor.`,
+          icon: '/vite.svg',
+          tag: 'soon',
+        });
+      }
+    };
+    run();
+  }, [debts, dbLoading, user]);
   const toast = useCallback((msg, type = 'success') => {
     const id = Math.random().toString(36).slice(2);
     setToasts((t) => [...t, { id, msg, type }]);
