@@ -83,6 +83,7 @@ const fmtDT = (s) => {
 const dayD = (s) => (s ? Math.ceil((new Date(s) - new Date()) / 864e5) : null);
 const dSt = (d) => {
   if (d.status === 'paid') return 'paid';
+  if (d.category === 'personal_debt') return 'normal';
   const x = dayD(d.dueDate);
   return x === null
     ? 'normal'
@@ -96,6 +97,7 @@ const dSt = (d) => {
 };
 const dLbl = (d) => {
   if (d.status === 'paid') return 'Ödendi';
+  if (d.category === 'personal_debt') return '';
   const x = dayD(d.dueDate);
   if (x === null) return fmtD(d.dueDate);
   if (x < 0) return Math.abs(x) + 'g gecikmiş';
@@ -901,9 +903,11 @@ function DebtCard({ debt, sym, onPay, onDetail }) {
           marginTop: 10,
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: dCol(st) }}>
-          {lbl}
-        </span>
+        {lbl && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: dCol(st) }}>
+            {lbl}
+          </span>
+        )}
         {debt.status !== 'paid' && (
           <div onClick={(e) => e.stopPropagation()}>
             <Btn size="sm" onClick={() => onPay(debt.id)}>
