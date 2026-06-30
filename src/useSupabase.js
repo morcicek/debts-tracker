@@ -315,6 +315,94 @@ export function useSupabase(userId) {
     [userId, debts],
   );
 
+  // ── Personal Payments ────────────────────────────────────────────────────
+  const [personalPayments, setPersonalPayments] = useState([]);
+  const [ppLoading, setPpLoading] = useState(false);
+
+  const toPA = (r) => ({
+    id: r.id,
+    cat: r.cat,
+    name: r.name,
+    amount: r.amount,
+    dueDate: r.due_date,
+    icon: r.icon || null,
+    paid: r.paid,
+    paidAt: r.paid_at,
+    createdAt: r.created_at,
+  });
+
+  // Personal payments yükle
+  const loadPersonalPayments = useCallback(async () => {
+    if (!userId) return;
+    setPpLoading(true);
+    const { data, error } = await supabase
+      .from('personal_payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (!error && data) setPersonalPayments(data.map(toPA));
+    setPpLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    loadPersonalPayments();
+  }, [loadPersonalPayments]);
+
+  // Ödeme ekle
+  const addPersonalPayment = useCallback(
+    async (data) => {
+      const { data: inserted, error } = await supabase
+        .from('personal_payments')
+        .insert({
+          user_id: userId,
+          cat: data.cat,
+          name: data.name,
+          amount: data.amount,
+          due_date: data.dueDate,
+          icon: data.icon || null,
+          paid: false,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      if (inserted) setPersonalPayments((p) => [toPA(inserted), ...p]);
+    },
+    [userId],
+  );
+
+  // Ödeme yap
+  const payPersonalPayment = useCallback(
+    async (id) => {
+      const { data: updated, error } = await supabase
+        .from('personal_payments')
+        .update({ paid: true, paid_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      if (error) throw error;
+      if (updated)
+        setPersonalPayments((p) =>
+          p.map((x) => (x.id === id ? toPA(updated) : x)),
+        );
+    },
+    [userId],
+  );
+
+  // Ödeme sil
+  const deletePersonalPayment = useCallback(
+    async (id) => {
+      const { error } = await supabase
+        .from('personal_payments')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      setPersonalPayments((p) => p.filter((x) => x.id !== id));
+    },
+    [userId],
+  );
+
   return {
     debts,
     payments,
@@ -323,5 +411,10 @@ export function useSupabase(userId) {
     updateDebt,
     deleteDebt,
     makePayment,
+    personalPayments,
+    ppLoading,
+    addPersonalPayment,
+    payPersonalPayment,
+    deletePersonalPayment,
   };
 }
